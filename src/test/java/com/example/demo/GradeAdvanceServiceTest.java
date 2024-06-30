@@ -15,11 +15,13 @@ import static org.mockito.Mockito.mock;
 
 public class GradeAdvanceServiceTest {
 
-    private final States state = new States(Paths.get("target/state"));
+    private final States states = new States(Paths.get("target/state"));
     TargetGen mockGen = mock(TargetGen.class);
     private TargetsExporter mockExporter = mock(TargetsExporter.class);
+    private AdvanceApplier mockApplier = mock(AdvanceApplier.class);
+    private TargetsImporter mockImporter = mock(TargetsImporter.class);
 
-    GradeAdvanceService service = new GradeAdvanceService(state, mockGen, mockExporter);
+    GradeAdvanceService service = new GradeAdvanceService(states, mockGen, mockExporter, mockImporter, mockApplier);
 
     @BeforeEach
     void setUp() throws IOException {
@@ -29,7 +31,7 @@ public class GradeAdvanceServiceTest {
 
     @Test
     void alreadyCompleted(){
-        state.set(AdvanceState.COMPLETED);
+        states.set(AdvanceState.COMPLETED);
         AdvanceResult result = service.advance();
         assertThat(result).isEqualTo(AdvanceResult.ALREADY_COMPLETED);
     }
@@ -53,16 +55,71 @@ public class GradeAdvanceServiceTest {
         assertThat(result).isEqualTo(AdvanceResult.TARGET_EXPORT_FAILED);
     }
 
+    @Test
+    void applyFail(){
+        BDDMockito.given(mockGen.gen()).willReturn(mock(Targets.class));
+        BDDMockito.given(mockApplier.apply(Mockito.any(Targets.class)))
+                .willThrow(new RuntimeException("!"));
+
+        AdvanceResult result = service.advance();
+        assertThat(result).isEqualTo(AdvanceResult.TARGET_APPLY_FAILED);
+    }
+
+
+    @Test
+    void applyFail_Then_State_ApplyFailed(){
+        BDDMockito.given(mockGen.gen()).willReturn(mock(Targets.class));
+        BDDMockito.given(mockApplier.apply(Mockito.any(Targets.class)))
+                .willThrow(new RuntimeException("!"));
+
+        service.advance();
+        assertThat(states.get()).isEqualTo(AdvanceState.APPLY_FAILED);
+    }
+
+
+    @Test
+    void applySuccess(){
+        BDDMockito.given(mockGen.gen()).willReturn(mock(Targets.class));
+        BDDMockito.given(mockApplier.apply(Mockito.any(Targets.class)))
+                .willReturn(Mockito.mock(ApplyResult.class));
+
+        AdvanceResult result = service.advance();
+        assertThat(result).isEqualTo(AdvanceResult.SUCCESS);
+    }
+
+    @Test
+    void state_ApplyFailed_When_Advance(){
+        states.set(AdvanceState.APPLY_FAILED);
+        Targets targets = new Targets();
+        BDDMockito.given(mockImporter.importTargets(Mockito.any(Path.class)))
+                        .willReturn(targets);
+
+        service.advance();
+
+        BDDMockito.then(mockGen).shouldHaveNoInteractions();
+        BDDMockito.then(mockExporter).shouldHaveNoInteractions();
+        BDDMockito.then(mockApplier).should().apply(Mockito.eq(targets));
+    }
+
 
     private class GradeAdvanceService {
         private final States states;
         private final TargetGen targetGen;
         private final TargetsExporter targetsExporter;
+        private final TargetsImporter targetsImporter;
+        private final AdvanceApplier advanceApplier;
+        private final Path targetsFilePath = Paths.get("target/targets");
 
-        public GradeAdvanceService(States state, TargetGen targetGen, TargetsExporter targetsExporter) {
-            this.states = state;
+        public GradeAdvanceService(States states,
+                                   TargetGen targetGen,
+                                   TargetsExporter targetsExporter,
+                                   TargetsImporter targetsImporter,
+                                   AdvanceApplier advanceApplier) {
+            this.states = states;
             this.targetGen = targetGen;
             this.targetsExporter = targetsExporter;
+            this.targetsImporter = targetsImporter;
+            this.advanceApplier = advanceApplier;
         }
 
         public AdvanceResult advance() {
@@ -72,38 +129,32 @@ public class GradeAdvanceServiceTest {
             }
 
             Targets targets;
-            try {
-                targets = targetGen.gen();
-            } catch (Exception e) {
-                return AdvanceResult.TARGET_GET_FAILED;
+
+            if(state == AdvanceState.APPLY_FAILED){
+                targets = targetsImporter.importTargets(targetsFilePath);
+            } else {
+                try {
+                    targets = targetGen.gen();
+                } catch (Exception e) {
+                    return AdvanceResult.TARGET_GET_FAILED;
+                }
+
+                try {
+                    targetsExporter.export(targetsFilePath, targets);
+                } catch (Exception e) {
+                    return AdvanceResult.TARGET_EXPORT_FAILED;
+                }
             }
 
             try {
-                targetsExporter.export(Paths.get("target/targets"),targets);
+                advanceApplier.apply(targets);
             } catch (Exception e) {
-                return AdvanceResult.TARGET_EXPORT_FAILED;
+                states.set(AdvanceState.APPLY_FAILED);
+                return AdvanceResult.TARGET_APPLY_FAILED;
             }
 
-            return null;
-        };
-    }
-
-    private class TargetGen {
-        public Targets gen() {
-            return null;
+            return AdvanceResult.SUCCESS;
         }
     }
 
-    private class Targets {
-    }
-
-    private enum AdvanceResult {
-        TARGET_GET_FAILED, TARGET_EXPORT_FAILED, ALREADY_COMPLETED
-    }
-
-    private class TargetsExporter {
-        public void export(Path path, Targets targets) {
-
-        }
-    }
 }
