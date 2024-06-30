@@ -1,5 +1,5 @@
 package com.example.demo;
 
 enum AdvanceState {
-    GERNERATING
+    COMPLETED, GERNERATING
 }
