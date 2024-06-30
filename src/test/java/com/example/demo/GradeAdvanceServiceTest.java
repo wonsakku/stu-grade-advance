@@ -131,6 +131,7 @@ public class GradeAdvanceServiceTest {
             Targets targets;
 
             if(state == AdvanceState.APPLY_FAILED){
+                // TODO targetImporter.importTargets 가 실패하는 경우에 대한 구현 필요
                 targets = targetsImporter.importTargets(targetsFilePath);
             } else {
                 try {
