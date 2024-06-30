@@ -16,7 +16,7 @@ import static org.mockito.Mockito.mock;
 public class GradeAdvanceServiceTest {
 
     private final States states = new States(Paths.get("target/state"));
-    TargetGen mockGen = mock(TargetGen.class);
+    TargetsGen mockGen = mock(TargetsGen.class);
     private TargetsExporter mockExporter = mock(TargetsExporter.class);
     private AdvanceApplier mockApplier = mock(AdvanceApplier.class);
     private TargetsImporter mockImporter = mock(TargetsImporter.class);
@@ -90,7 +90,7 @@ public class GradeAdvanceServiceTest {
     @Test
     void state_ApplyFailed_When_Advance(){
         states.set(AdvanceState.APPLY_FAILED);
-        Targets targets = new Targets();
+        Targets targets = new Targets(null);
         BDDMockito.given(mockImporter.importTargets(Mockito.any(Path.class)))
                         .willReturn(targets);
 
@@ -104,14 +104,14 @@ public class GradeAdvanceServiceTest {
 
     private class GradeAdvanceService {
         private final States states;
-        private final TargetGen targetGen;
+        private final TargetsGen targetGen;
         private final TargetsExporter targetsExporter;
         private final TargetsImporter targetsImporter;
         private final AdvanceApplier advanceApplier;
         private final Path targetsFilePath = Paths.get("target/targets");
 
         public GradeAdvanceService(States states,
-                                   TargetGen targetGen,
+                                   TargetsGen targetGen,
                                    TargetsExporter targetsExporter,
                                    TargetsImporter targetsImporter,
                                    AdvanceApplier advanceApplier) {
