@@ -1,39 +1,31 @@
 package com.example.demo;
 
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 
-import javax.sql.DataSource;
-
-import java.sql.Connection;
-
-import static org.assertj.core.api.Assertions.*;
-import static org.junit.jupiter.api.Assertions.*;
+import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest
 @ActiveProfiles("test")
 class TargetsGenTest {
 
     @Autowired
-    private JdbcTemplate jdbcTemplate;
+    private TargetsGen targetsGen;
 
     @Autowired
-    private DataSource dataSource;
+    private GivenAssertHelper helper;
 
     @Test
     void gen() throws  Exception{
         // given
         // students 몇 개 넣고
-        clearStu();
-        givenStu(101, 1);
-        givenStu(102, 2);
-        givenStu(103, 3);
+        helper.clearStu();
+        helper.givenStu(101, 1);
+        helper.givenStu(102, 2);
+        helper.givenStu(103, 3);
 
-        TargetsGen targetsGen = new TargetsGen(jdbcTemplate);
         Targets targets = targetsGen.gen();
         assertThat(targets.getUsers()).hasSize(3);
         assertThat(targets.getUsers()).contains(
@@ -41,14 +33,6 @@ class TargetsGenTest {
                 new User(102, 2),
                 new User(103, 3)
         );
-    }
-
-    private void clearStu() {
-        jdbcTemplate.update("truncate table stuinfo");
-    }
-
-    private void givenStu(int id, int grade) {
-        jdbcTemplate.update("insert into stuinfo values (?, ?)", id, grade);
     }
 }
 
